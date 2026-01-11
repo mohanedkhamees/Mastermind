@@ -19,3 +19,5 @@ class AIGuessProvider(IGuessProvider):
                 return len(self._algorithm._possible_codes) > 0
             return True
 
+    def set_guess(self, pegs):
+        pass

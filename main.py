@@ -33,6 +33,10 @@ from PySide6.QtWidgets import QApplication
 # Application Layer Imports
 from app.window import MainWindow
 from app.styles import APP_QSS
+from ApplicationControl.GameController import GameController
+from CoreDomainModel.Game import Game
+from Implementation.ProviderFactory import ProviderFactory
+from Networking.NetworkServiceImpl import NetworkServiceImpl
 
 
 def main():
@@ -52,7 +56,10 @@ def main():
     app.setStyleSheet(APP_QSS)
     
     # Hauptfenster erstellen und anzeigen
-    window = MainWindow()
+    provider_factory = ProviderFactory(lambda url, gamer_id: NetworkServiceImpl(url, gamer_id))
+    game = Game(provider_factory)
+    controller = GameController(game)
+    window = MainWindow(controller)
     window.show()
     
     # Event-Loop starten
@@ -61,4 +68,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

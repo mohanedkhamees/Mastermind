@@ -108,7 +108,7 @@ class MainWindow(QMainWindow):
     Main Application Window
     Verwaltet die Views (Settings, Game) und Navigation
     """
-    def __init__(self):
+    def __init__(self, boundary):
         super().__init__()
         # Remove default title bar
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
@@ -133,7 +133,7 @@ class MainWindow(QMainWindow):
         self.settings = SettingsView()
         self.settings.set_on_start_callback(self.start_game)
 
-        self.game = GameScreen()
+        self.game = GameScreen(boundary)
         self.game.set_on_back_callback(self.back_to_settings)
 
         # Add views to stack
@@ -143,10 +143,8 @@ class MainWindow(QMainWindow):
 
     def start_game(self):
         """Startet ein neues Spiel mit den Einstellungen aus SettingsView"""
-        variant = self.settings.get_variant()
-        mode = self.settings.get_mode()
-        self.game.settings = self.settings  # Pass settings to game screen
-        success = self.game.initialize_game(variant, mode)
+        config = self.settings.get_config()
+        success = self.game.initialize_game(config)
         if success:
             self.stack.setCurrentWidget(self.game)
 
@@ -156,13 +154,5 @@ class MainWindow(QMainWindow):
         if self.game.game_thread and self.game.game_thread.isRunning():
             self.game.game_thread.terminate()
             self.game.game_thread.wait()
-
-        if self.game.game_thread1 and self.game.game_thread1.isRunning():
-            self.game.game_thread1.terminate()
-            self.game.game_thread1.wait()
-
-        if self.game.game_thread2 and self.game.game_thread2.isRunning():
-            self.game.game_thread2.terminate()
-            self.game.game_thread2.wait()
 
         self.stack.setCurrentWidget(self.settings)

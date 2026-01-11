@@ -1,122 +1,69 @@
-from CoreDomainModel.Game import Game
-from CoreDomainModel.GameState import GameState
-from CoreDomainModel.Round import Round
-from CoreDomainModel.IGuessProvider import IGuessProvider
-from CoreDomainModel.IEvaluationProvider import IEvaluationProvider
-from CoreDomainModel.ISecretCodeProvider import ISecretCodeProvider
+from typing import Any, Callable, Dict, List, Optional
+from ApplicationControl.IBoundary import IBoundary
+from CoreDomainModel.IGame import IGame
 
 
-class GameController:
-    """
-    Central orchestrator of a single Superhirn game.
-    Coordinates guessing, evaluation and game state.
-    """
+class GameController(IBoundary):
+    """Boundary implementation connecting UI to the game."""
 
-    def __init__(
-        self,
-        game: Game,
-        guess_provider: IGuessProvider,
-        evaluation_provider: IEvaluationProvider,
-        secret_code_provider: ISecretCodeProvider
-    ):
-        self._listeners = []
+    def __init__(self, game: IGame):
         self._game = game
-        self._guess_provider = guess_provider
-        self._evaluation_provider = evaluation_provider
-        self._secret_code_provider = secret_code_provider
-        self._secret_code = None
+        self._on_round_played: Optional[Callable[[Dict[str, Any]], None]] = None
+        self._on_game_won: Optional[Callable[[Dict[str, Any]], None]] = None
+        self._on_game_lost: Optional[Callable[[Dict[str, Any]], None]] = None
+        self._on_computer_guess: Optional[Callable[[Dict[str, Any]], None]] = None
+        self._on_waiting_for_feedback: Optional[Callable[[Dict[str, Any]], None]] = None
+        self._game.set_event_sink(self)
 
-    # -------------------------------------------------
-    # GAME START
-    # -------------------------------------------------
-    def add_listener(self, listener):
-        self._listeners.append(listener)
+    def start_new_game(self, config: Dict[str, Any]) -> bool:
+        return self._game.start(config)
 
-    def _notify_round(self, guess, result):
-        for l in self._listeners:
-            l.on_round_played(guess, result)
+    def play(self) -> None:
+        self._game.play()
 
-    def _notify_win(self):
-        for l in self._listeners:
-            l.on_game_won()
+    def submit_guess(self, colors: List[str]) -> None:
+        self._game.submit_guess(colors)
 
-    def _notify_loss(self):
-        for l in self._listeners:
-            l.on_game_lost()
+    def submit_feedback(self, black: int, white: int) -> None:
+        self._game.submit_feedback(black, white)
 
-    def start_game(self):
-        self._secret_code = self._secret_code_provider.create_secret_code()
-        self._game.start()
+    def submit_secret_code(self, colors: List[str]) -> None:
+        self._game.submit_secret_code(colors)
 
-    # -------------------------------------------------
-    # GAME LOOP
-    # -------------------------------------------------
+    def get_game_view(self) -> Dict[str, Any]:
+        return self._game.get_view()
 
-    def play(self, delay=None):
-        if self._game.get_state() != GameState.RUNNING:
-            raise RuntimeError("Game must be started before playing")
+    def set_on_round_played(self, callback: Optional[Callable[[Dict[str, Any]], None]]) -> None:
+        self._on_round_played = callback
 
-        variant = self._game.get_variant()
-        max_pegs = variant.code_length
+    def set_on_game_won(self, callback: Optional[Callable[[Dict[str, Any]], None]]) -> None:
+        self._on_game_won = callback
 
-        while (
-            self._game.get_state() == GameState.RUNNING
-            and self._game.has_rounds_left()
-        ):
-            # Optional delay (Computer vs Computer)
-            if delay:
-                delay.wait()
+    def set_on_game_lost(self, callback: Optional[Callable[[Dict[str, Any]], None]]) -> None:
+        self._on_game_lost = callback
 
-            # 1. Get next guess
-            guess = self._guess_provider.next_guess()
+    def set_on_computer_guess(self, callback: Optional[Callable[[Dict[str, Any]], None]]) -> None:
+        self._on_computer_guess = callback
 
-            print("\n--- Computer Guess ---")
-            print(f"Guess: {guess.get_pegs()}")
+    def set_on_waiting_for_feedback(self, callback: Optional[Callable[[Dict[str, Any]], None]]) -> None:
+        self._on_waiting_for_feedback = callback
 
-            # 2. Evaluate guess
-            result = self._evaluation_provider.evaluate(self._secret_code, guess)
+    def on_round_played(self, payload: Dict[str, Any]) -> None:
+        if self._on_round_played:
+            self._on_round_played(payload)
 
-            # 3. Validate feedback (logical checks)
-            if result.correct_position < 0 or result.correct_color < 0:
-                raise RuntimeError("Invalid feedback: negative values are not allowed")
+    def on_game_won(self, payload: Dict[str, Any]) -> None:
+        if self._on_game_won:
+            self._on_game_won(payload)
 
-            if result.correct_position + result.correct_color > max_pegs:
-                raise RuntimeError(
-                    "Invalid feedback: black + white exceeds code length"
-                )
+    def on_game_lost(self, payload: Dict[str, Any]) -> None:
+        if self._on_game_lost:
+            self._on_game_lost(payload)
 
-            # 4. Update algorithm / guess provider
-            self._guess_provider.update(guess, result)
+    def on_computer_guess(self, payload: Dict[str, Any]) -> None:
+        if self._on_computer_guess:
+            self._on_computer_guess(payload)
 
-            # 5. Store round
-            self._game.add_round(Round(guess, result))
-            self._notify_round(guess, result)
-
-            print(
-                f"Feedback: black={result.correct_position}, "
-                f"white={result.correct_color}"
-            )
-
-            # 6. Check for inconsistent feedback
-            if not self._guess_provider.is_consistent():
-                raise RuntimeError(
-                    "Inconsistent feedback detected: no possible codes remain"
-                )
-
-            # 7. Win condition
-            if result.is_correct(max_pegs):
-                print("🎉 Game WON!")
-                self._game._state = GameState.WON
-                self._notify_win()
-
-                return
-
-        # -------------------------------------------------
-        # LOSS CONDITION
-        # -------------------------------------------------
-
-        if not self._game.has_rounds_left():
-            print("❌ Game LOST: maximum number of guesses reached")
-            self._game._state = GameState.LOST
-            self._notify_loss()
-
+    def on_waiting_for_feedback(self, payload: Dict[str, Any]) -> None:
+        if self._on_waiting_for_feedback:
+            self._on_waiting_for_feedback(payload)

@@ -19,3 +19,6 @@ class HumanGuessProvider(IGuessProvider):
 
     def is_consistent(self) -> bool:
         return True
+
+    def set_guess(self, pegs):
+        pass

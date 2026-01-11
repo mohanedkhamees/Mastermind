@@ -2,5 +2,6 @@ from enum import Enum
 
 
 class GameMode(Enum):
-    SINGLEPLAYER = "SINGLEPLAYER"
-    MULTIPLAYER = "MULTIPLAYER"
+    RATER = "RATER"
+    KODIERER = "KODIERER"
+    ZUSCHAUER = "ZUSCHAUER"
