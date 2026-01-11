@@ -7,6 +7,7 @@ from CoreDomainModel.GameConfig import GameConfig
 from CoreDomainModel.GameMode import GameMode
 from CoreDomainModel.GameState import GameState
 from CoreDomainModel.GameVariant import GameVariant
+from CoreDomainModel.PegColor import PegColor
 from CoreDomainModel.IGame import IGame
 from CoreDomainModel.IEvaluationProvider import IEvaluationProvider
 from CoreDomainModel.IGuessProvider import IGuessProvider
@@ -106,11 +107,14 @@ class Game(IGame):
     def submit_secret_code(self, colors: List[str]) -> None:
         if self._sessions:
             session = self._sessions[0]
+            secret_code = Code.from_color_names(colors)
+            self._validate_secret_code(secret_code)
             session.secret_code_provider.set_code(colors)
-            session.secret_code = session.secret_code_provider.create_secret_code()
+            session.secret_code = secret_code
             if session.state == GameState.NOT_STARTED:
                 session.state = GameState.RUNNING
             if self._config and self._config.mode == GameMode.KODIERER and session.is_human_evaluator:
+                self._phase = "WAITING_FOR_COMPUTER_GUESS"
                 self._produce_computer_guess(session, board=0)
             self._build_view()
 
@@ -187,7 +191,7 @@ class Game(IGame):
             self._phase = "WAITING_FOR_GUESS"
         elif self._config.mode == GameMode.KODIERER:
             if session.is_human_evaluator:
-                self._phase = "WAITING_FOR_GUESS"
+                self._phase = "WAITING_FOR_SECRET"
             else:
                 session.secret_code = session.secret_code_provider.create_secret_code()
                 session.state = GameState.RUNNING
@@ -217,6 +221,17 @@ class Game(IGame):
             is_human_evaluator=(self._config.mode == GameMode.KODIERER and self._config.kodierer_mode == "Mensch")
         )
         self._sessions.append(session)
+
+    def _validate_secret_code(self, secret_code: Code) -> None:
+        if not self._config:
+            return
+        variant = self._config.variant
+        if secret_code.length() != variant.code_length:
+            raise RuntimeError("Invalid secret code length")
+        allowed_colors = [color for color in PegColor if color.value <= variant.color_count]
+        for peg in secret_code.get_pegs():
+            if peg not in allowed_colors:
+                raise RuntimeError("Invalid secret code color")
 
     def _setup_zuschauer_sessions(self) -> None:
         variant = self._config.variant
