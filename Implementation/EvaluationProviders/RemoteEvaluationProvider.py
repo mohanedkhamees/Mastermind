@@ -46,3 +46,9 @@ class RemoteEvaluationProvider(IEvaluationProvider):
             raise RuntimeError("Server evaluation failed")
 
         return result
+
+    def uses_remote_secret(self) -> bool:
+        return True
+
+    def set_feedback(self, black: int, white: int) -> None:
+        pass
