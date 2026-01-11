@@ -31,6 +31,11 @@ class IGame(ABC):
         pass
 
     @abstractmethod
+    def step(self) -> None:
+        """Advance an auto-running game by one step."""
+        pass
+
+    @abstractmethod
     def get_view(self) -> Dict[str, Any]:
         """Return a view DTO for UI rendering."""
         pass

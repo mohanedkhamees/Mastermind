@@ -49,6 +49,7 @@ class GameScreen(QWidget):
         self.secret_code_colors: Optional[List[QColor]] = None
         self.kodierer_mode: Optional[str] = None
         self._on_back_callback: Optional[Callable] = None
+        self.spectator_timer: Optional[QTimer] = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 20, 20, 20)
@@ -65,6 +66,13 @@ class GameScreen(QWidget):
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: rgba(245,245,255,0.8); font-size: 14px;")
         top.addWidget(self.status_label, alignment=Qt.AlignRight)
+
+        self.step_btn = QPushButton("Nächster Schritt")
+        self.step_btn.setObjectName("Ghost")
+        self.step_btn.setCursor(Qt.PointingHandCursor)
+        self.step_btn.clicked.connect(self._on_step_clicked)
+        self.step_btn.hide()
+        top.addWidget(self.step_btn, alignment=Qt.AlignRight)
         root.addLayout(top)
 
         self.boards_card = make_card()
@@ -147,6 +155,10 @@ class GameScreen(QWidget):
         self.last_computer_guess_colors = None
         self.secret_code_colors = None
         self.new_game_container.hide()
+        self.step_btn.hide()
+        if self.spectator_timer:
+            self.spectator_timer.stop()
+            self.spectator_timer = None
 
         self._clear_widgets()
 
@@ -168,8 +180,17 @@ class GameScreen(QWidget):
             QMessageBox.warning(self, "Connection Failed", error)
             return False
 
-        self._start_game_thread()
-        self.update_status("Spiel läuft...")
+        if self.mode == "ZUSCHAUER":
+            self.step_btn.show()
+            self._start_spectator_timer()
+            self.update_status("Zuschauer-Modus läuft...")
+        elif self.mode == "KODIERER" and self.kodierer_mode != "Mensch":
+            self._start_game_thread()
+            self.update_status("Spiel läuft...")
+        elif self.mode == "RATER":
+            self.update_status("Dein Zug...")
+        else:
+            self.update_status("Bereit für Feedback...")
         return True
 
     def _clear_widgets(self):
@@ -279,6 +300,17 @@ class GameScreen(QWidget):
         self.game_thread.error.connect(self._on_game_error)
         self.game_thread.start()
 
+    def _start_spectator_timer(self):
+        delay_seconds = self.config.get("delay", 1)
+        if delay_seconds <= 0:
+            return
+        self.spectator_timer = QTimer(self)
+        self.spectator_timer.timeout.connect(self._on_step_clicked)
+        self.spectator_timer.start(int(delay_seconds * 1000))
+
+    def _on_step_clicked(self):
+        self.boundary.step()
+
     def _on_round_played(self, payload: Dict[str, Any]):
         if self.mode == "KODIERER" and self.kodierer_mode == "Mensch":
             return
@@ -314,6 +346,12 @@ class GameScreen(QWidget):
                 self.update_status(f"Runde {self.current_round}: Computer rät weiter...")
 
     def _on_computer_guess(self, payload: Dict[str, Any]):
+        QTimer.singleShot(0, lambda p=payload: self._show_computer_guess(p))
+
+    def _on_waiting_for_feedback(self, payload: Dict[str, Any]):
+        QTimer.singleShot(0, self._show_feedback_prompt)
+
+    def _show_computer_guess(self, payload: Dict[str, Any]):
         guess_names = payload.get("guess", [])
         guess_colors = [PEG_COLOR_MAP.get(name, QColor("#ffffff")) for name in guess_names]
         self.last_computer_guess_colors = guess_colors
@@ -322,7 +360,7 @@ class GameScreen(QWidget):
             row.set_guess(guess_colors)
             self.board_widget.update()
 
-    def _on_waiting_for_feedback(self, payload: Dict[str, Any]):
+    def _show_feedback_prompt(self):
         if self.feedback_input:
             self.feedback_input.show()
             self.update_status("Computer hat geraten. Gib Feedback...")
@@ -330,11 +368,15 @@ class GameScreen(QWidget):
     def _on_game_won(self, payload: Dict[str, Any]):
         board = payload.get("board", 0)
         rounds = payload.get("rounds", 0)
+        if self.spectator_timer:
+            self.spectator_timer.stop()
         self.show_game_won(rounds, board)
 
     def _on_game_lost(self, payload: Dict[str, Any]):
         board = payload.get("board", 0)
         rounds = payload.get("rounds", 0)
+        if self.spectator_timer:
+            self.spectator_timer.stop()
         self.show_game_lost(rounds, board)
 
     def show_game_won(self, rounds: int, board: int = 0):
@@ -566,6 +608,8 @@ class GameScreen(QWidget):
     def _show_new_game_button(self):
         if self.new_game_container:
             self.new_game_container.show()
+        if self.step_btn:
+            self.step_btn.hide()
 
     def _on_game_end_message_closed(self, button):
         self._show_new_game_button()
@@ -573,6 +617,9 @@ class GameScreen(QWidget):
     def _on_new_game_clicked(self):
         if self.new_game_container:
             self.new_game_container.hide()
+        if self.spectator_timer:
+            self.spectator_timer.stop()
+            self.spectator_timer = None
         if self._on_back_callback:
             self._on_back_callback()
 
@@ -580,6 +627,8 @@ class GameScreen(QWidget):
         self.update_status("Spiel beendet")
 
     def _on_game_error(self, error_msg: str):
+        if self.spectator_timer:
+            self.spectator_timer.stop()
         QMessageBox.critical(self, "Fehler", f"Spiel-Fehler: {error_msg}")
         self.update_status("Fehler aufgetreten")
 

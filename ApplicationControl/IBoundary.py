@@ -25,6 +25,10 @@ class IBoundary(ABC):
         pass
 
     @abstractmethod
+    def step(self) -> None:
+        pass
+
+    @abstractmethod
     def get_game_view(self) -> Dict[str, Any]:
         pass
 

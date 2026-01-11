@@ -24,6 +24,7 @@ class _GameSession:
     state: GameState
     secret_code: Optional[Code]
     is_human_evaluator: bool = False
+    pending_guess: Optional[Code] = None
 
 
 class _FixedSecretCodeProvider(ISecretCodeProvider):
@@ -42,12 +43,16 @@ class Game(IGame):
         self._config: Optional[GameConfig] = None
         self._sessions: List[_GameSession] = []
         self._view: Dict[str, Any] = {}
+        self._phase: str = "AUTO_RUNNING"
+        self._current_guess: Optional[str] = None
 
     def start(self, config: Dict[str, Any]) -> bool:
         try:
             self._config = self._parse_config(config)
             self._sessions = []
+            self._current_guess = None
             self._setup_sessions()
+            self._initialize_phase()
             self._build_view()
             return True
         except Exception as exc:
@@ -59,20 +64,65 @@ class Game(IGame):
             raise RuntimeError("Game not initialized")
         if self._config.mode == GameMode.ZUSCHAUER:
             self._play_parallel()
+        elif self._config.mode == GameMode.KODIERER and self._config.kodierer_mode == "Mensch":
+            return
+        elif self._config.mode == GameMode.RATER:
+            return
         else:
             self._play_single(self._sessions[0], board=0)
 
     def submit_guess(self, colors: List[str]) -> None:
-        if self._sessions:
-            self._sessions[0].guess_provider.set_guess(colors)
+        if not self._sessions or not self._config:
+            return
+        if self._config.mode != GameMode.RATER:
+            return
+        session = self._sessions[0]
+        if session.state == GameState.NOT_STARTED:
+            session.state = GameState.RUNNING
+        if session.secret_code is None:
+            session.secret_code = session.secret_code_provider.create_secret_code()
+        guess = Code.from_color_names(colors)
+        result = session.evaluation_provider.evaluate(session.secret_code, guess)
+        self._process_round(session, guess, result, board=0)
+        self._phase = "WAITING_FOR_GUESS" if self._session_is_running(session) else "AUTO_RUNNING"
+        self._build_view()
 
     def submit_feedback(self, black: int, white: int) -> None:
-        if self._sessions:
-            self._sessions[0].evaluation_provider.set_feedback(black, white)
+        if not self._sessions or not self._config:
+            return
+        session = self._sessions[0]
+        if not session.pending_guess:
+            return
+        session.evaluation_provider.set_feedback(black, white)
+        result = session.evaluation_provider.evaluate(session.secret_code, session.pending_guess)
+        guess = session.pending_guess
+        session.pending_guess = None
+        self._current_guess = None
+        self._process_round(session, guess, result, board=0)
+        if self._session_is_running(session):
+            self._produce_computer_guess(session, board=0)
+        self._build_view()
 
     def submit_secret_code(self, colors: List[str]) -> None:
         if self._sessions:
-            self._sessions[0].secret_code_provider.set_code(colors)
+            session = self._sessions[0]
+            session.secret_code_provider.set_code(colors)
+            session.secret_code = session.secret_code_provider.create_secret_code()
+            if session.state == GameState.NOT_STARTED:
+                session.state = GameState.RUNNING
+            if self._config and self._config.mode == GameMode.KODIERER and session.is_human_evaluator:
+                self._produce_computer_guess(session, board=0)
+            self._build_view()
+
+    def step(self) -> None:
+        if not self._sessions or not self._config:
+            return
+        if self._config.mode == GameMode.ZUSCHAUER:
+            self._step_spectator()
+        elif self._config.mode == GameMode.KODIERER and not self._sessions[0].is_human_evaluator:
+            if self._session_is_running(self._sessions[0]):
+                self._run_single_round(self._sessions[0], board=0)
+        self._build_view()
 
     def get_view(self) -> Dict[str, Any]:
         return self._view
@@ -126,6 +176,26 @@ class Game(IGame):
             self._setup_zuschauer_sessions()
         else:
             self._setup_single_session()
+
+    def _initialize_phase(self) -> None:
+        if not self._config or not self._sessions:
+            return
+        session = self._sessions[0]
+        if self._config.mode == GameMode.RATER:
+            session.secret_code = session.secret_code_provider.create_secret_code()
+            session.state = GameState.RUNNING
+            self._phase = "WAITING_FOR_GUESS"
+        elif self._config.mode == GameMode.KODIERER:
+            if session.is_human_evaluator:
+                self._phase = "WAITING_FOR_GUESS"
+            else:
+                session.secret_code = session.secret_code_provider.create_secret_code()
+                session.state = GameState.RUNNING
+                self._phase = "AUTO_RUNNING"
+        else:
+            for spectator_session in self._sessions:
+                spectator_session.state = GameState.RUNNING
+            self._phase = "AUTO_RUNNING"
 
     def _setup_single_session(self) -> None:
         variant = self._config.variant
@@ -186,6 +256,67 @@ class Game(IGame):
             secret_code=secret_code
         ))
 
+    def _produce_computer_guess(self, session: _GameSession, board: int) -> None:
+        if session.secret_code is None:
+            session.secret_code = session.secret_code_provider.create_secret_code()
+        if session.state == GameState.NOT_STARTED:
+            session.state = GameState.RUNNING
+        guess = session.guess_provider.next_guess()
+        session.pending_guess = guess
+        self._current_guess = " ".join(guess.to_color_names())
+        self._phase = "WAITING_FOR_FEEDBACK"
+        self._emit("on_computer_guess", {
+            "board": board,
+            "guess": guess.to_color_names()
+        })
+        self._emit("on_waiting_for_feedback", {"board": board})
+
+    def _process_round(self, session: _GameSession, guess: Code, result, board: int) -> None:
+        if result.correct_position < 0 or result.correct_color < 0:
+            raise RuntimeError("Invalid feedback: negative values are not allowed")
+
+        max_pegs = self._config.variant.code_length if self._config else 0
+        if result.correct_position + result.correct_color > max_pegs:
+            raise RuntimeError("Invalid feedback: black + white exceeds code length")
+
+        session.guess_provider.update(guess, result)
+        session.rounds.append(Round(guess, result))
+
+        self._emit("on_round_played", {
+            "board": board,
+            "round": len(session.rounds),
+            "guess": guess.to_color_names(),
+            "feedback": {
+                "black": result.correct_position,
+                "white": result.correct_color
+            }
+        })
+
+        if not session.guess_provider.is_consistent():
+            raise RuntimeError("Inconsistent feedback detected: no possible codes remain")
+
+        if result.is_correct(max_pegs):
+            session.state = GameState.WON
+            self._phase = "AUTO_RUNNING"
+            self._emit("on_game_won", {
+                "board": board,
+                "rounds": len(session.rounds)
+            })
+            return
+
+        if len(session.rounds) >= self._max_rounds:
+            session.state = GameState.LOST
+            self._phase = "AUTO_RUNNING"
+            self._emit("on_game_lost", {
+                "board": board,
+                "rounds": len(session.rounds)
+            })
+
+    def _step_spectator(self) -> None:
+        for idx, session in enumerate(self._sessions, start=1):
+            if self._session_is_running(session):
+                self._run_single_round(session, idx)
+
     def _play_single(self, session: _GameSession, board: int) -> None:
         self._start_session(session)
         self._run_session_loop(session, board)
@@ -218,56 +349,14 @@ class Game(IGame):
     def _run_single_round(self, session: _GameSession, board: int) -> None:
         if not session.secret_code:
             raise RuntimeError("Secret code not available")
-
-        guess = session.guess_provider.next_guess()
         if session.is_human_evaluator:
-            self._emit("on_computer_guess", {
-                "board": board,
-                "guess": guess.to_color_names()
-            })
-            self._emit("on_waiting_for_feedback", {"board": board})
-
-        result = session.evaluation_provider.evaluate(session.secret_code, guess)
-
-        if result.correct_position < 0 or result.correct_color < 0:
-            raise RuntimeError("Invalid feedback: negative values are not allowed")
-
-        max_pegs = self._config.variant.code_length if self._config else 0
-        if result.correct_position + result.correct_color > max_pegs:
-            raise RuntimeError("Invalid feedback: black + white exceeds code length")
-
-        session.guess_provider.update(guess, result)
-        session.rounds.append(Round(guess, result))
-
-        self._emit("on_round_played", {
-            "board": board,
-            "round": len(session.rounds),
-            "guess": guess.to_color_names(),
-            "feedback": {
-                "black": result.correct_position,
-                "white": result.correct_color
-            }
-        })
-
-        if not session.guess_provider.is_consistent():
-            raise RuntimeError("Inconsistent feedback detected: no possible codes remain")
-
-        if result.is_correct(max_pegs):
-            session.state = GameState.WON
-            self._emit("on_game_won", {
-                "board": board,
-                "rounds": len(session.rounds)
-            })
-            self._build_view()
+            if not session.pending_guess:
+                self._produce_computer_guess(session, board)
             return
 
-        if len(session.rounds) >= self._max_rounds:
-            session.state = GameState.LOST
-            self._emit("on_game_lost", {
-                "board": board,
-                "rounds": len(session.rounds)
-            })
-
+        guess = session.guess_provider.next_guess()
+        result = session.evaluation_provider.evaluate(session.secret_code, guess)
+        self._process_round(session, guess, result, board)
         self._build_view()
 
     def _emit(self, method: str, payload: Dict[str, Any]) -> None:
@@ -298,6 +387,10 @@ class Game(IGame):
                     else None
                 )
             })
+        round_count = max((len(session.rounds) for session in self._sessions), default=0)
+        status = self._overall_status()
+        board_a = boards[0]["rounds"] if boards else []
+        board_b = boards[1]["rounds"] if len(boards) > 1 else []
         self._view = {
             "variant": {
                 "name": self._config.variant.name,
@@ -305,5 +398,21 @@ class Game(IGame):
                 "color_count": self._config.variant.color_count
             },
             "mode": self._config.mode.value,
+            "status": status,
+            "round": round_count,
+            "maxRounds": self._max_rounds,
+            "boardA": board_a,
+            "boardB": board_b,
+            "phase": self._phase,
+            "currentGuess": self._current_guess,
             "boards": boards
         }
+
+    def _overall_status(self) -> str:
+        if any(session.state == GameState.RUNNING for session in self._sessions):
+            return GameState.RUNNING.value
+        if self._sessions and all(session.state == GameState.WON for session in self._sessions):
+            return GameState.WON.value
+        if self._sessions and all(session.state == GameState.LOST for session in self._sessions):
+            return GameState.LOST.value
+        return GameState.NOT_STARTED.value

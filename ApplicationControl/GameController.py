@@ -30,6 +30,9 @@ class GameController(IBoundary):
     def submit_secret_code(self, colors: List[str]) -> None:
         self._game.submit_secret_code(colors)
 
+    def step(self) -> None:
+        self._game.step()
+
     def get_game_view(self) -> Dict[str, Any]:
         return self._game.get_view()
 
