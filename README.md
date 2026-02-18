@@ -15,7 +15,7 @@ Die Anwendung bietet:
 
 ### Main Menu
 
-<img src="img/mainmenu.png" width="800" alt="main-menu">
+<img src="img/MainMenu.png" width="800" alt="main-menu">
 
 *Hauptmenü zur Auswahl der verschiedenen Spielmodi.*
 
@@ -23,7 +23,7 @@ Die Anwendung bietet:
 
 ### Kodiermodus
 
-<img src="img/kodiermodus.png" width="800" alt="coder-mode">
+<img src="img/KodierModus.png" width="800" alt="coder-mode">
 
 *Modus zur Erstellung und Verwaltung des geheimen Farb-Codes.*
 
@@ -31,7 +31,7 @@ Die Anwendung bietet:
 
 ### Ratermodus
 
-<img src="img/ratermodus.png" width="800" alt="rat-mode">
+<img src="img/RaterModus.png" width="800" alt="rat-mode">
 
 *Spielmodus, in dem der Code durch logisches Kombinieren erraten wird.*
 
@@ -39,7 +39,7 @@ Die Anwendung bietet:
 
 ### Zuschauermodus
 
-<img src="img/zuschauermodus.png" width="800" alt="view-mode">
+<img src="img/ZuschauerModus.png" width="800" alt="view-mode">
 
 *Visualisierung des Spielverlaufs ohne aktive Teilnahme.*
 
