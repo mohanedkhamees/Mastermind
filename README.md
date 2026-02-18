@@ -39,7 +39,7 @@ Die Anwendung bietet:
 
 ### Zuschauermodus
 
-<img src="img/ZuschauerModus.png" width="800" alt="view-mode">
+<img src="img/ZuSchauerModus.png" width="800" alt="view-mode">
 
 *Visualisierung des Spielverlaufs ohne aktive Teilnahme.*
 
