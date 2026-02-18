@@ -11,6 +11,48 @@ Die Anwendung bietet:
 
 ---
 
+## Screenshots
+
+### Main Menu
+
+<img src="img/mainmenu.png" width="800" alt="main-menu">
+
+*Hauptmenü zur Auswahl der verschiedenen Spielmodi.*
+
+---
+
+### Kodiermodus
+
+<img src="img/kodiermodus.png" width="800" alt="coder-mode">
+
+*Modus zur Erstellung und Verwaltung des geheimen Farb-Codes.*
+
+---
+
+### Ratermodus
+
+<img src="img/ratermodus.png" width="800" alt="rat-mode">
+
+*Spielmodus, in dem der Code durch logisches Kombinieren erraten wird.*
+
+---
+
+### Zuschauermodus
+
+<img src="img/zuschauermodus.png" width="800" alt="view-mode">
+
+*Visualisierung des Spielverlaufs ohne aktive Teilnahme.*
+
+---
+
+### Online-Modus
+
+<img src="img/OnlineModus.png" width="800" alt="online-mode">
+
+*Netzwerkbasierter Spielmodus mit Client-Server-Kommunikation.*
+
+---
+
 ## Projektstruktur (Kurzüberblick)
 
 * `CoreDomainModel/` – Domänenklassen & Interfaces
@@ -35,7 +77,7 @@ Die Anwendung bietet:
 
 ---
 
-# ▶ Anwendung aus dem Quellcode starten (main.py)
+# Anwendung aus dem Quellcode starten (main.py)
 
 ## Schritt 1: Projekt klonen
 
@@ -92,7 +134,7 @@ python main.py
 
 ---
 
-# 🧪 Tests ausführen
+# Tests ausführen
 
 ## Schritt 5: Tests starten
 
@@ -108,7 +150,7 @@ python -m unittest
 
 ---
 
-# 🧱 Anwendung als Windows-Executable (.exe) bauen
+# Anwendung als Windows-Executable (.exe) bauen
 
 Mit PyInstaller kann das Projekt in eine eigenständige Windows-Anwendung umgewandelt werden.
 
@@ -151,7 +193,7 @@ dist\SuperHirn\SuperHirn.exe
 
 ---
 
-# ⚠ Hinweise
+# Hinweise
 
 * Falls beim Starten Fehler auftreten:
 
