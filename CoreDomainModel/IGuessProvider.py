@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import List
 from CoreDomainModel.Code import Code
 from CoreDomainModel.EvaluationResult import EvaluationResult
 
@@ -19,3 +20,7 @@ class IGuessProvider(ABC):
         Returns False if no possible codes remain.
         """
         pass
+
+    def set_guess(self, pegs: List[str]) -> None:
+        """Optionally accept a human guess as color names."""
+        raise NotImplementedError

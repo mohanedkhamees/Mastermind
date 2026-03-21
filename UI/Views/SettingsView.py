@@ -5,8 +5,6 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSizePolicy, QSpacerItem, QFrame, QSpinBox, QMessageBox, QCheckBox, QLineEdit
 )
-from CoreDomainModel.GameVariant import GameVariant
-from UI.IBoundary import ISettingsView
 from UI.Components.Segmented import Segmented
 from UI.Utils.SettingsManager import SettingsManager
 
@@ -412,9 +410,8 @@ class SettingsView(QWidget):
         if self._on_start_callback:
             self._on_start_callback()
 
-    # ISettingsView interface methods
-    def get_variant(self) -> GameVariant:
-        return GameVariant.SUPERHIRN if self.variant_seg.current_index() == 0 else GameVariant.SUPERSUPERHIRN
+    def get_variant(self) -> str:
+        return "SUPERHIRN" if self.variant_seg.current_index() == 0 else "SUPERSUPERHIRN"
 
     def get_mode(self) -> str:
         modes = ["RATER", "KODIERER", "ZUSCHAUER"]
@@ -453,6 +450,24 @@ class SettingsView(QWidget):
     def get_gamer_id(self) -> str:
         """Returns gamer ID"""
         return self.gamer_id_edit.text().strip() or "player1"
+
+    def get_config(self) -> dict:
+        return {
+            "variant": self.get_variant(),
+            "mode": self.get_mode(),
+            "algorithm": self.get_algorithm(),
+            "algorithm1": self.get_algorithm1(),
+            "algorithm2": self.get_algorithm2(),
+            "delay": self.get_delay(),
+            "rater_mode": self.get_rater_mode(),
+            "rater_server_ip": self.get_server_ip(),
+            "rater_server_port": self.get_server_port(),
+            "rater_gamer_id": self.get_gamer_id(),
+            "kodierer_mode": self.get_kodierer_mode(),
+            "kodierer_server_ip": self.get_kodierer_server_ip(),
+            "kodierer_server_port": self.get_kodierer_server_port(),
+            "kodierer_gamer_id": self.get_kodierer_gamer_id()
+        }
 
     def get_kodierer_mode(self) -> str:
         """Returns 'Mensch', 'lokaler Computer', or 'Codierer im Netz'"""

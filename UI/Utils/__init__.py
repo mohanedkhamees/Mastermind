@@ -3,7 +3,7 @@ from UI.Utils.ColorMapper import (
     PEG_COLOR_MAP,
     PALETTE_SUPERHIRN,
     PALETTE_SUPERSUPERHIRN,
-    color_to_peg
+    color_to_name
 )
 from UI.Utils.SettingsManager import SettingsManager, GameStatistics, GameHistoryEntry
 
@@ -11,7 +11,7 @@ __all__ = [
     'PEG_COLOR_MAP',
     'PALETTE_SUPERHIRN',
     'PALETTE_SUPERSUPERHIRN',
-    'color_to_peg',
+    'color_to_name',
     'SettingsManager',
     'GameStatistics',
     'GameHistoryEntry'

@@ -3,16 +3,15 @@ from typing import List
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPainter, QPen, QBrush, QColor
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy
-from CoreDomainModel.GameVariant import GameVariant
 from UI.Components.GuessRowWidget import GuessRowWidget
 
 
 class BoardWidget(QWidget):
     """Game board showing all guess rows"""
 
-    def __init__(self, variant: GameVariant, label: str, parent=None):
+    def __init__(self, code_length: int, label: str, parent=None):
         super().__init__(parent)
-        self.variant = variant
+        self.code_length = code_length
         self.label = label
         self.is_active = False
         self.rows: List[GuessRowWidget] = []
@@ -39,7 +38,7 @@ class BoardWidget(QWidget):
 
         max_rounds = 10
         for _ in range(max_rounds):
-            row = GuessRowWidget(variant.code_length)
+            row = GuessRowWidget(code_length)
             self.rows.append(row)
             rows_layout.addWidget(row)
 
